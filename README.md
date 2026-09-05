@@ -7,8 +7,10 @@
 1. 创建环境并安装依赖：
 
 ```bash
+conda create -n rag-agent python=3.13 -y
 conda activate rag-agent
-pip install -r requirements.txt
+# 国内网络建议走清华镜像安装依赖
+pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
 2. 在项目根目录创建 `.env`（智谱 API Key 申请：https://open.bigmodel.cn ）：
