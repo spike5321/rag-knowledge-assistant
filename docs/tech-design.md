@@ -46,8 +46,8 @@
 | 项 | 选择 | 理由 | 备选（何时换） |
 |---|---|---|---|
 | 语言 | Python 3.11+ | 生态最全，团队熟悉 | — |
-| LLM | 智谱 glm-4-flash | 免费、快；**已支持工具调用**，v2.0 Agent 化无需换模型 | DeepSeek/Qwen（只需改 `core.py`） |
-| Embedding | 智谱 embedding-3 | 与 chat 同供应商，共用一个 API Key，管理最简 | — |
+| LLM | 智谱 glm-4.5-flash | 免费、快（glm-4-flash 已于 2026-09 被智谱下线，实测确认）；已支持工具调用，v2.0 Agent 化无需换模型 | DeepSeek/Qwen（只需改 `core.py`） |
+| Embedding | 智谱 embedding-3，账号无权限时自动降级本地 `BAAI/bge-small-zh-v1.5`（fastembed） | 与 chat 同供应商，共用一个 API Key；本地兜底保证链路始终可跑（切换 provider 后需重建 `db/`） | — |
 | 向量库 | Chroma（PersistentClient 本地持久化） | 嵌入式零运维；单机十万级向量绰绰有余 | Qdrant/pgvector（见 §6 触发条件） |
 | 界面 | Streamlit | 聊天组件 + 侧边栏开箱即用；`st.write_stream` 原生支持 v1.1 流式 | FastAPI + 前端（见 §6 触发条件） |
 | 文档解析 | pypdf + 内置读文本 | 覆盖 PDF/TXT/MD 三种格式，无重依赖 | pymupdf（PDF 解析质量不佳时） |

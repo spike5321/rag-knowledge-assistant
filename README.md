@@ -17,8 +17,10 @@ pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 ```
 ZHIPU_API_KEY=你的key
-# 可选，默认 glm-4-flash（免费）
-CHAT_MODEL=glm-4-flash
+# 可选，默认 glm-4.5-flash（免费；glm-4-flash 已被智谱下线）
+CHAT_MODEL=glm-4.5-flash
+# 可选，向量化 provider：auto（默认，智谱 embedding-3 优先，账号无权限时自动降级本地 bge 模型）
+# EMBEDDING_PROVIDER=auto
 ```
 
 3. 启动界面：
@@ -37,9 +39,12 @@ python -m rag.ingest path/to/your/docs
 
 ```
 app.py            Streamlit 界面
-rag/core.py       智谱 API 封装（embedding + chat）
+demo.py           界面 Demo（模拟数据，不调用 API）
+rag/core.py       模型调用唯一入口（智谱 embedding/chat + 本地向量化兜底）
 rag/ingest.py     文档解析、切分、向量化入库
 rag/pipeline.py   检索 + 生成主链路
+rag/mock.py       模拟数据层（Demo/测试用）
+scripts/          示例文档生成与端到端验收脚本
 data/docs/        知识库文档
 db/               Chroma 向量库持久化
 ```

@@ -1,5 +1,5 @@
 """检索 + 生成：问答主链路。"""
-from rag.core import chat, embed
+from rag.core import chat, embed_query
 from rag.ingest import get_collection
 
 TOP_K = 4
@@ -19,7 +19,7 @@ PROMPT_TEMPLATE = """你是一个严谨的知识库问答助手。请仅根据�
 
 def retrieve(question: str, k: int = TOP_K) -> list[dict]:
     col = get_collection()
-    vector = embed([question])[0]
+    vector = embed_query(question)
     res = col.query(query_embeddings=[vector], n_results=k)
     hits = []
     for doc, meta, dist in zip(

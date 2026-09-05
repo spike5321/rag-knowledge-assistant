@@ -85,7 +85,10 @@ def ingest(paths: list[Path]) -> list[dict]:
 
 def get_collection():
     client = chromadb.PersistentClient(str(DB_DIR))
-    return client.get_or_create_collection("knowledge_base")
+    # cosine 空间下 distance = 1 - 余弦相似度，pipeline 的 "1 - 距离" 分数才落在 0~1
+    return client.get_or_create_collection(
+        "knowledge_base", metadata={"hnsw:space": "cosine"}
+    )
 
 
 if __name__ == "__main__":
