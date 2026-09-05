@@ -29,8 +29,13 @@ with st.sidebar:
             p.write_bytes(f.getvalue())
             paths.append(p)
         with st.spinner("正在解析、切分并向量化..."):
-            n = ingest(paths)
-        st.success(f"入库完成，共 {n} 个片段")
+            results = ingest(paths)
+        added = [r for r in results if r["status"] == "added"]
+        duplicates = [r["source"] for r in results if r["status"] == "duplicate"]
+        if added:
+            st.success(f"入库完成，新增 {sum(r['chunks'] for r in added)} 个片段")
+        if duplicates:
+            st.warning(f"以下文档已存在，已跳过重复入库：{'、'.join(duplicates)}")
 
 # 主界面：对话
 if "messages" not in st.session_state:

@@ -13,7 +13,7 @@ conda activate rag-agent
 pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
-2. 在项目根目录创建 `.env`（智谱 API Key 申请：https://open.bigmodel.cn ）：
+2. 在项目根目录创建 `.env`（可直接复制 `.env.example` 修改，智谱 API Key 申请：https://open.bigmodel.cn ）：
 
 ```
 ZHIPU_API_KEY=你的key
@@ -27,7 +27,11 @@ CHAT_MODEL=glm-4-flash
 streamlit run app.py
 ```
 
-在侧边栏上传文档 → 点击"入库" → 在对话框提问。
+在侧边栏上传文档 → 点击"入库" → 在对话框提问。重复上传同名文档会提示已存在并跳过；也可以用命令行批量导入本地文件夹：
+
+```bash
+python -m rag.ingest path/to/your/docs
+```
 
 ## 项目结构
 

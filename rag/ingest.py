@@ -47,25 +47,40 @@ def split_text(text: str) -> list[str]:
     return chunks
 
 
-def ingest(paths: list[Path]) -> int:
+def ingest(paths: list[Path]) -> list[dict]:
+    """入库并返回每个文件的处理结果，供界面展示。
+
+    每项为 {"source", "chunks", "status"}，status 取值：
+    - "added"      新入库
+    - "duplicate"  同名文档已存在，跳过（去重提示）
+    - "empty"      文档无内容
+    """
     col = get_collection()
-    total = 0
+    existing = set(col.get(include=[])["ids"])
+    results: list[dict] = []
     for path in paths:
         text = read_file(path)
         chunks = split_text(text)
         if not chunks:
+            results.append({"source": path.name, "chunks": 0, "status": "empty"})
             print(f"跳过（无内容）: {path}")
+            continue
+        chunk_ids = [f"{path.name}::{i}" for i in range(len(chunks))]
+        if any(cid in existing for cid in chunk_ids):
+            results.append({"source": path.name, "chunks": len(chunks), "status": "duplicate"})
+            print(f"跳过（同名文档已存在）: {path.name}")
             continue
         vectors = embed(chunks)
         col.add(
-            ids=[f"{path.name}::{i}" for i in range(len(chunks))],
+            ids=chunk_ids,
             documents=chunks,
             embeddings=vectors,
             metadatas=[{"source": path.name, "chunk": i} for i in range(len(chunks))],
         )
-        total += len(chunks)
+        existing.update(chunk_ids)
+        results.append({"source": path.name, "chunks": len(chunks), "status": "added"})
         print(f"已入库 {path.name}: {len(chunks)} 个片段")
-    return total
+    return results
 
 
 def get_collection():
@@ -84,5 +99,6 @@ if __name__ == "__main__":
     if not files:
         print("没有找到可入库的文档，请把 .txt/.md/.pdf 放进 data/docs/")
         sys.exit(1)
-    n = ingest(files)
-    print(f"完成，共入库 {n} 个片段")
+    results = ingest(files)
+    added = sum(r["chunks"] for r in results if r["status"] == "added")
+    print(f"完成，本次新增入库 {added} 个片段")
