@@ -1,0 +1,14 @@
+# 环境
+.env
+__pycache__/
+*.pyc
+.venv/
+
+# 向量库与上传的文档（不入库）
+db/
+data/docs/
+
+# Streamlit / IDE
+.streamlit/secrets.toml
+.idea/
+.vscode/
