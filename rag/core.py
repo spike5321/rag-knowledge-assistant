@@ -23,7 +23,12 @@ load_dotenv()
 
 EMBEDDING_MODEL = "embedding-3"
 CHAT_MODEL = os.getenv("CHAT_MODEL", "glm-4.5-flash")  # glm-4-flash 已被智谱下线
-LOCAL_EMBEDDING_MODEL = "BAAI/bge-small-zh-v1.5"
+# 本地向量模型。想换模型就改这个环境变量 —— 但**必须同时重建向量库**
+# （`python -m rag.ingest --rebuild`）：不同模型的向量空间不可比，
+# 混用会让检索结果错得看不出来（实测过：同一个问题、同一片段，
+# 本地模型给 0.651、智谱给 0.494，分数完全不在一个尺度上）。
+# 可选模型见 `TextEmbedding.list_supported_models()`（本机实测 30 个）。
+LOCAL_EMBEDDING_MODEL = os.getenv("LOCAL_EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5")
 # 本地模型的缓存目录。fastembed 默认往 %TEMP%/fastembed_cache 下载，
 # 系统清理临时目录后模型就没了 —— 而"免 Key、免网络"正是本地模型的全部价值，
 # 缓存丢在临时目录等于这个价值不成立。所以固定到用户目录，可用环境变量覆盖。

@@ -224,6 +224,27 @@ EMBEDDING_PROVIDER=local python -m rag.query "分布式锁怎么实现"
 EMBEDDING_PROVIDER=zhipu python -m rag.query "分布式锁怎么实现"   # 需配 Key
 ```
 
+### 想换本地向量模型
+
+`LOCAL_EMBEDDING_MODEL` 是配置项，改环境变量就行，不用动代码。
+fastembed 0.8.0 自带 30 个可选模型，中文可用的几个：
+
+| 模型 | 维度 | 体积 | 备注 |
+|---|---|---|---|
+| `BAAI/bge-small-zh-v1.5` | 512 | 90MB | **当前默认**，中文短文本 |
+| `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` | 384 | 220MB | 多语言 |
+| `jinaai/jina-embeddings-v2-base-zh` | 768 | 640MB | 上下文 8192 |
+| `intfloat/multilingual-e5-large` | 1024 | 2.2GB | 多语言，体积最大 |
+
+**换模型必须 `--rebuild`。** 真正的理由不是"维度可能对不上"（那种 Chroma 会直接报错，
+看得见），而是**不同模型的向量空间不可比** —— 同一个问题、命中的还是同一个片段，
+本地模型给 0.651、智谱给 0.494（见上表）。两种模型的向量混在一个库里，
+检索不会报错，只是结果失去意义。
+
+**但先别急着换。** 上面那张对照表已经说明：这个语料量级（4 篇 / 33 片段）下，
+向量维度从 512 加到 2048 都没带来提升。真要让检索变好，先做
+**混合检索（BM25 + 向量）**—— 向量检索对"LRU""三次握手"这类专有名词本来就弱。
+
 ## 目录结构
 
 ```
@@ -243,7 +264,7 @@ db/                           Chroma 持久化（gitignore，可用 --rebuild �
 ## 测试
 
 ```bash
-python -m pytest tests -q      # 35 项，离线、不联网、约 7 秒
+python -m pytest tests -q      # 36 项，离线、不联网、约 7 秒
 ```
 
 原来 25 项，这次补的里面有两组是**回归测试**，钉住上面第 1、2 条设计决策：
@@ -252,6 +273,7 @@ python -m pytest tests -q      # 35 项，离线、不联网、约 7 秒
 - `test_changed_file_is_really_updated` —— 文件改了内容，向量库里的旧片段必须被真正替换
 - `test_no_blank_lines_falls_back_to_line_split` —— 无空行文本不许退化成整篇一片
 - `test_explicit_zhipu_does_not_fall_back_without_key` —— 显式指定 provider 时不许静默降级
+- `test_local_cache_dir_is_not_in_temp` —— 本地模型缓存不许落在系统临时目录（否则模型会被清掉）
 
 ## 已知限制
 
