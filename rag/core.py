@@ -24,6 +24,13 @@ load_dotenv()
 EMBEDDING_MODEL = "embedding-3"
 CHAT_MODEL = os.getenv("CHAT_MODEL", "glm-4.5-flash")  # glm-4-flash 已被智谱下线
 LOCAL_EMBEDDING_MODEL = "BAAI/bge-small-zh-v1.5"
+# 本地模型的缓存目录。fastembed 默认往 %TEMP%/fastembed_cache 下载，
+# 系统清理临时目录后模型就没了 —— 而"免 Key、免网络"正是本地模型的全部价值，
+# 缓存丢在临时目录等于这个价值不成立。所以固定到用户目录，可用环境变量覆盖。
+LOCAL_CACHE_DIR = os.getenv(
+    "FASTEMBED_CACHE_PATH",
+    os.path.join(os.path.expanduser("~"), ".cache", "fastembed"),
+)
 
 _client: ZhipuAI | None = None
 _local_model = None
@@ -86,11 +93,18 @@ def _embed_local(texts: list[str]) -> list[list[float]]:
 
 def _get_local_model():
     global _local_model
-    os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
     if _local_model is None:
+        # ★ 实测（Windows / fastembed 0.8.0 / huggingface_hub 1.32.0）：
+        # 不设这一项，首次下载会在"把 blobs 链接成 snapshots"这一步失败
+        # （普通用户默认没有创建软链接的权限），报
+        #   NoSuchFile: ...\snapshots\<rev>\model_optimized.onnx
+        # 看着像"模型文件没下完"，其实 94MB 的 onnx 早已躺在 blobs/ 里，
+        # 只是没有被链接出来。设成 1 之后 HF 改用复制，正常运行。
+        os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS", "1")
+        os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
         from fastembed import TextEmbedding
 
-        _local_model = TextEmbedding(LOCAL_EMBEDDING_MODEL)
+        _local_model = TextEmbedding(LOCAL_EMBEDDING_MODEL, cache_dir=LOCAL_CACHE_DIR)
     return _local_model
 
 

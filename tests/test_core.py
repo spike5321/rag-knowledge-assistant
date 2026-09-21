@@ -1,4 +1,7 @@
 """rag/core.py 的单元测试：embed 分批与 provider 降级逻辑，不触网。"""
+import tempfile
+from pathlib import Path
+
 import pytest
 
 import rag.core as core
@@ -134,3 +137,15 @@ def test_explicit_zhipu_does_not_fall_back_without_key(monkeypatch):
 
     with pytest.raises(RuntimeError, match="ZHIPU_API_KEY"):
         core.embed(["测试"])
+
+
+def test_local_cache_dir_is_not_in_temp():
+    """本地模型的缓存不能落在系统临时目录。
+
+    fastembed 默认往 %TEMP%/fastembed_cache 下模型，系统清理临时目录后就没了 ——
+    而"免 Key、免网络"正是本地模型的全部价值，缓存丢了等于这个价值不成立。
+    """
+    cache = Path(core.LOCAL_CACHE_DIR).resolve()
+    temp = Path(tempfile.gettempdir()).resolve()
+    assert temp not in cache.parents, f"缓存目录不能落在系统临时目录里：{cache}"
+    assert cache.name == "fastembed"
