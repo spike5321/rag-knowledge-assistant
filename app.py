@@ -1,4 +1,8 @@
-"""知识库问答助手 - Streamlit 界面。
+"""知识库构建工具 · 可视化验证界面。
+
+命令行是主体（`python -m rag.ingest` / `python -m rag.query`）；
+这个界面用来人工核对两件事：入库结果好不好、检索命中的片段对不对。
+问答只是验证检索质量的最后一环，不是这个工具的目的。
 
 运行: streamlit run app.py
 """
@@ -9,8 +13,9 @@ import streamlit as st
 from rag.ingest import ingest
 from rag.pipeline import answer
 
-st.set_page_config(page_title="知识库问答助手", page_icon="📚")
-st.title("📚 知识库问答助手")
+st.set_page_config(page_title="知识库构建工具", page_icon="📚")
+st.title("📚 知识库构建工具")
+st.caption("命令行是主体：`python -m rag.ingest` 建库 / `python -m rag.query` 验证检索。这里是可选的人工核对界面。")
 
 # 侧边栏：上传文档并入库
 with st.sidebar:
@@ -31,11 +36,20 @@ with st.sidebar:
         with st.spinner("正在解析、切分并向量化..."):
             results = ingest(paths)
         added = [r for r in results if r["status"] == "added"]
-        duplicates = [r["source"] for r in results if r["status"] == "duplicate"]
+        updated = [r for r in results if r["status"] == "updated"]
+        unchanged = [r["source"] for r in results if r["status"] == "unchanged"]
+        failed = [r for r in results if r["status"] == "error"]
         if added:
-            st.success(f"入库完成，新增 {sum(r['chunks'] for r in added)} 个片段")
-        if duplicates:
-            st.warning(f"以下文档已存在，已跳过重复入库：{'、'.join(duplicates)}")
+            st.success(f"新增 {sum(r['chunks'] for r in added)} 个片段")
+        if updated:
+            st.info(
+                f"已更新 {sum(r['chunks'] for r in updated)} 个片段"
+                "（这些文档内容有变化，旧片段已被替换）"
+            )
+        if unchanged:
+            st.warning(f"内容与已入库版本完全一致，已跳过：{'、'.join(unchanged)}")
+        for r in failed:
+            st.error(f"{r['source']} 处理失败：{r.get('error')}")
 
 # 主界面：对话
 if "messages" not in st.session_state:

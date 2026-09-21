@@ -4,6 +4,20 @@ import pytest
 import rag.core as core
 
 
+@pytest.fixture(autouse=True)
+def _isolate_provider(monkeypatch):
+    """每个用例都把 provider 状态和 Key 重置掉。
+
+    不加这层的话，某个用例把 _provider 定成 "local" 之后，
+    后面的用例就会真的去加载本地向量模型 —— 要么慢，要么直接联网下载。
+    """
+    monkeypatch.setattr(core, "_provider", None)
+    monkeypatch.setattr(core, "_announced_local", True)   # 测试输出里不用打提示
+    monkeypatch.setenv("ZHIPU_API_KEY", "test-key")       # 默认走智谱分支
+    monkeypatch.setenv("EMBEDDING_PROVIDER", "auto")
+    yield
+
+
 class _FakeItem:
     def __init__(self, dim: int):
         self.embedding = [0.5] * dim
@@ -91,4 +105,32 @@ def test_embed_other_errors_not_swallowed(monkeypatch):
     monkeypatch.setenv("EMBEDDING_PROVIDER", "auto")
 
     with pytest.raises(RuntimeError):
+        core.embed(["测试"])
+
+
+def test_auto_uses_local_when_no_api_key(monkeypatch):
+    """auto 模式 + 没配 Key → 直接走本地，不发那个注定失败的请求。
+
+    这是"clone 下来装完依赖就能跑"的前提：不该先被
+    "你去注册个账号填 Key" 拦住。
+    """
+    monkeypatch.delenv("ZHIPU_API_KEY", raising=False)
+    monkeypatch.setenv("EMBEDDING_PROVIDER", "auto")
+    monkeypatch.setattr(core, "_embed_local", lambda texts: [[0.0]] * len(texts))
+
+    def _must_not_call():
+        raise AssertionError("没配 Key 时不应该去调智谱")
+
+    monkeypatch.setattr(core, "client", _must_not_call)
+
+    assert core.embed(["测试"]) == [[0.0]]
+
+
+def test_explicit_zhipu_does_not_fall_back_without_key(monkeypatch):
+    """显式指定 zhipu 时，即使没配 Key 也必须报错，不能偷偷改用本地模型
+    —— 否则算出来的向量维度和库里的对不上，检索会静默出错。"""
+    monkeypatch.delenv("ZHIPU_API_KEY", raising=False)
+    monkeypatch.setenv("EMBEDDING_PROVIDER", "zhipu")
+
+    with pytest.raises(RuntimeError, match="ZHIPU_API_KEY"):
         core.embed(["测试"])

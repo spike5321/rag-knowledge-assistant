@@ -1,4 +1,4 @@
-"""知识库问答助手 · 界面 Demo（模拟数据版）。
+"""知识库构建工具 · 界面 Demo（模拟数据版）。
 
 后端功能全部由 rag/mock.py 模拟，不调用真实 API，
 用于验证界面与操作流程。真实版本见 app.py。
@@ -11,8 +11,8 @@ import streamlit as st
 
 from rag.mock import MOCK_KNOWLEDGE_BASE, mock_answer, mock_ingest
 
-st.set_page_config(page_title="知识库问答助手 · Demo", page_icon="📚")
-st.title("📚 知识库问答助手")
+st.set_page_config(page_title="知识库构建工具 · Demo", page_icon="📚")
+st.title("📚 知识库构建工具")
 st.caption("界面演示版：数据为模拟数据，用于验证交互流程")
 
 # 演示用：把模拟知识库文档当作"可上传"的文件

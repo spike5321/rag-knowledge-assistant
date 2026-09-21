@@ -3,11 +3,16 @@
 所有模型调用集中在这里，方便后续换模型或加缓存。
 
 向量化支持双 provider（EMBEDDING_PROVIDER 环境变量）：
-- "auto"（默认）：优先智谱 embedding-3，账号无权限（错误码 1211）时自动降级本地 bge 模型
+- "auto"（默认）：**没配 ZHIPU_API_KEY 就直接走本地**；配了但账号无权限
+  （错误码 1211）时也降级本地
 - "zhipu"：只用智谱，失败即报错
 - "local"：只用本地 fastembed（BAAI/bge-small-zh-v1.5，离线运行）
 
-注意：两个 provider 的向量维度不同（2048 vs 512），切换后必须删除 db/ 目录重新入库。
+auto 的默认值刻意偏向"能跑起来"：这是个可以独立使用的知识库工具，
+不该先被"你去注册个账号填 Key"拦住。想强制用智谱就显式设 zhipu。
+
+注意：两个 provider 的向量维度不同（2048 vs 512），切换后必须重建向量库 ——
+`python -m rag.ingest --rebuild`。
 """
 import os
 
@@ -22,7 +27,8 @@ LOCAL_EMBEDDING_MODEL = "BAAI/bge-small-zh-v1.5"
 
 _client: ZhipuAI | None = None
 _local_model = None
-_provider: str | None = None
+_provider: str | None = None      # 配置值：auto / zhipu / local；降级后会定下来
+_announced_local = False          # 本地向量化的提示只打一次，别刷屏
 
 
 def client() -> ZhipuAI:
@@ -37,11 +43,32 @@ def client() -> ZhipuAI:
     return _client
 
 
-def _resolve_provider() -> str:
+def _configured_provider() -> str:
+    """环境变量里配的 provider（首次调用时读一次并记住）。"""
     global _provider
     if _provider is None:
-        _provider = os.getenv("EMBEDDING_PROVIDER", "auto")
+        _provider = os.getenv("EMBEDDING_PROVIDER", "auto").strip().lower()
     return _provider
+
+
+def _effective_provider() -> str:
+    """实际会走的 provider。
+
+    auto 的判定依据是"有没有配 Key"：没配就直接走本地，而不是先发一个必然
+    失败的请求、等智谱回报错误再降级。少一次无效请求，也少一段必须联网
+    才能触发的分支 —— 离线场景下才真的可用。
+    """
+    configured = _configured_provider()
+    if configured in ("zhipu", "local"):
+        return configured
+    return "zhipu" if os.getenv("ZHIPU_API_KEY") else "local"
+
+
+def _announce_local(reason: str) -> None:
+    global _announced_local
+    if not _announced_local:
+        print(f"[rag] {reason}，使用本地向量化（{LOCAL_EMBEDDING_MODEL}）")
+        _announced_local = True
 
 
 def _embed_zhipu(texts: list[str]) -> list[list[float]]:
@@ -70,27 +97,30 @@ def _get_local_model():
 def embed(texts: list[str]) -> list[list[float]]:
     """向量化文档片段，单批最多 64 条由内部分批保证。"""
     global _provider
-    provider = _resolve_provider()
-    if provider in ("auto", "zhipu"):
-        try:
-            vectors = _embed_zhipu(texts)
-            _provider = "zhipu"
-            return vectors
-        except Exception as e:
-            # 1211 = 模型不存在：账号未开通 embedding 模型，auto 模式下降级到本地
-            if provider != "auto" or "1211" not in str(e):
-                raise
-            print(
-                "[rag] 智谱 embedding 模型不可用（当前账号无权限），"
-                f"自动切换为本地向量化（{LOCAL_EMBEDDING_MODEL}）"
-            )
-    _provider = "local"
-    return _embed_local(texts)
+
+    if _effective_provider() == "local":
+        if _configured_provider() == "auto":
+            _announce_local("未配置 ZHIPU_API_KEY")
+        return _embed_local(texts)
+
+    try:
+        return _embed_zhipu(texts)
+    except Exception as e:
+        # 1211 = 模型不存在：账号未开通 embedding 模型，auto 模式下降级到本地
+        if _configured_provider() != "auto" or "1211" not in str(e):
+            raise
+        _announce_local("智谱 embedding 模型不可用（当前账号无权限）")
+        _provider = "local"       # 定下来，后续调用不再重试智谱
+        return _embed_local(texts)
 
 
 def embed_query(question: str) -> list[float]:
-    """向量化用户查询。bge 系列本地模型对 query 需要加检索指令前缀。"""
-    if _resolve_provider() == "local":
+    """向量化用户查询。
+
+    走本地 bge 时必须给 query 加检索指令前缀：这类模型是按"短文 ↔ 短问"
+    非对称检索训练的，query 侧不加前缀会让相似度整体偏低。
+    """
+    if _effective_provider() == "local":
         instruction = "为这个句子生成表示以用于检索相关文章："
         vec = next(_get_local_model().query_embed([f"{instruction}{question}"]))
         return vec.tolist()
